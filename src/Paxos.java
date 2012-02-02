@@ -43,19 +43,19 @@ public class Paxos extends SerializationUtil {
 			DatagramPacket inputPacket = new DatagramPacket(buf,buf.length);
 			
 			try {
-					m.receive(inputPacket);
-					Object obj = deSerialize(inputPacket.getData());
+				m.receive(inputPacket);
+				Object obj = deSerialize(inputPacket.getData());
 					
-					if(obj instanceof PrepareMessage){
-						PrepareMessage pm = (PrepareMessage) obj;
-						System.out.println("Received prepare message from Paxos instance " + pm.getProcNo() 
-								+ " with sequence number " + pm.getSeqNo());
-					}
-					else if(obj instanceof AcceptRequestMessage){
-						AcceptRequestMessage arm = (AcceptRequestMessage) obj;
-						System.out.println("Received accept request message from Paxos instance " + arm.getProcNo() 
-								+ " with sequence number " + arm.getSeqNo());
-					}
+				if(obj instanceof PrepareMessage){
+					PrepareMessage pm = (PrepareMessage) obj;
+					System.out.println("Received prepare message from Paxos instance " + pm.getProcNo() 
+							+ " with sequence number " + pm.getSeqNo());
+				}
+				else if(obj instanceof AcceptRequestMessage){
+					AcceptRequestMessage arm = (AcceptRequestMessage) obj;
+					System.out.println("Received accept request message from Paxos instance " + arm.getProcNo() 
+							+ " with sequence number " + arm.getSeqNo());
+				}
 
 			} catch (IOException e) {
 				System.err.println("Could not receive packet.");		
