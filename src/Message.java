@@ -9,15 +9,15 @@ public abstract class Message implements Serializable {
 	private final int procn = Paxos.getProcn();
 
 	
-	public int getSeqNo(){
+	public int getSeqNo() {
 		return seqn;
 	}
 	
-	public int getProcNo(){
+	public int getProcNo() {
 		return procn;
 	}
 	
-	protected void setSeqNo(int seqn){
+	protected void setSeqNo(int seqn) {
 	  this.seqn = seqn;
 	}
 	

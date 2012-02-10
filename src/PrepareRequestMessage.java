@@ -1,12 +1,12 @@
 
-public class PrepareMessage extends Message {
+public class PrepareRequestMessage extends Message {
 
 	private static final long serialVersionUID = 4291835295987067981L;
 	
 	@SuppressWarnings("unused")
 	private final String message = "prepare";
 
-	public PrepareMessage(int seqn){
+	public PrepareRequestMessage(int seqn){
 		this.setSeqNo(seqn);
 	}
 
