@@ -1,7 +1,11 @@
+package com.nick.Paxos;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+
+import com.nick.Paxos.Messages.PaxosMessage;
+
 
 public class Paxos extends SerializationUtil {
 	
@@ -38,31 +42,30 @@ public class Paxos extends SerializationUtil {
 			System.exit(1);
 		}
 		while(true) {
-			byte[] buf = new byte[256];
+			byte[] buf = new byte[512];
 			DatagramPacket inputPacket = new DatagramPacket(buf,buf.length);
 			
 			try {
-				msocket.receive(inputPacket);
-				Object obj = deSerialize(inputPacket.getData());
-					
-				if (obj instanceof PrepareRequestMessage) {
-					PrepareRequestMessage prm = (PrepareRequestMessage) obj;
-					if (prm.getSeqNo() > Data.getLargestSeqNumber()) {
-						// Reply with promise
-					}
-				} else if (obj instanceof AcceptRequestMessage) {
-					AcceptRequestMessage arm = (AcceptRequestMessage) obj;
-					if (arm.getSeqNo() > Data.getLargestSeqNumber()) {
-						int result = Data.process(arm);
-						// Send result to leader
-					}
-				}
-
-			} catch (IOException e) {
+					msocket.receive(inputPacket);
+				} catch (IOException e) {
 				System.err.println("Could not receive packet.");		
+			}
+			
+			Object obj = null;
+			try {
+				obj = deSerialize(inputPacket.getData());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+			
+			if(obj instanceof PaxosMessage) {
+				Data.process(obj);
+			}
+		
 		}
 	}
 			

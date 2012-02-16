@@ -1,4 +1,9 @@
-public class AcceptRequestMessage extends Message {
+package com.nick.Paxos.Messages;
+
+import com.nick.Paxos.Command;
+
+
+public class AcceptRequestMessage extends PaxosMessage {
 	
 	private static final long serialVersionUID = 5141719313977492338L;
 	private Command cmd;

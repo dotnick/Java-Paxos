@@ -1,6 +1,11 @@
+package com.nick.Paxos.Messages;
+
+
 import java.io.Serializable;
 
-public abstract class Message implements Serializable {
+import com.nick.Paxos.Paxos;
+
+public abstract class PaxosMessage implements Serializable {
 	
 
 	private static final long serialVersionUID = 4667835754232191478L;
