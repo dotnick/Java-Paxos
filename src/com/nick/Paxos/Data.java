@@ -31,13 +31,12 @@ public class Data {
 		int result = 0;
 		if (message instanceof PrepareRequestMessage) {
 			PrepareRequestMessage PRM = (PrepareRequestMessage) message;
+			minSeqn = PRM.getSeqNo();
 			result = Data.processPrepareRequest(PRM);
-			
 			if (result == OK) {
 				// Send promise
 			} 
-
-			
+	
 		} else if (message instanceof AcceptRequestMessage) {
 			AcceptRequestMessage arm = (AcceptRequestMessage) message;
 			result = Data.processAcceptRequest(arm);
@@ -58,9 +57,8 @@ public class Data {
 		}
 	}
 	
-
 	public static int processAcceptRequest(AcceptRequestMessage ARM) {
-		if(ARM.getSeqNo() > getLargestSeqNumber()) {
+		if(ARM.getSeqNo() > getMinSeqn()) {
 			accepted = ARM;
 			return 1;
 		} else {
@@ -69,7 +67,7 @@ public class Data {
 	}
 	
 	public static int processPrepareRequest(PrepareRequestMessage PRM) {
-		if(PRM.getSeqNo() > getLargestSeqNumber()) {
+		if(PRM.getSeqNo() > getMinSeqn()) {
 			return 1;
 		} else {
 			return -1;
@@ -101,7 +99,7 @@ public class Data {
 	}
 	
 	public static int commit(AcceptNotificationMessage ANM) {
-		if(accepted != null && ANM.getSeqNo() == accepted.getSeqNo() && accepted.getCommand() == ANM.getCommand()) {
+		if(isCommandAccepted(ANM.getCommand())) {
 			SeqNumbersProcessed.add(ANM.getSeqNo());
 			accepted = null;
 			return write(ANM.getSeqNo(), ANM.getCommand());
@@ -116,6 +114,17 @@ public class Data {
 			return minSeqn;
 		} else {
 			return 0;
+		}
+	}
+	
+	// Command.equals returned false even when commands were the same
+	public static boolean isCommandAccepted(Command cmd) {
+		if(accepted != null) {
+		return (accepted.getCommand().getOperation().equals(cmd.getOperation())
+		 	 && accepted.getCommand().getVariable().equals(cmd.getVariable())
+			 && accepted.getCommand().getValue().equals(cmd.getValue()));
+	} else {
+		return false;
 		}
 	}
 
