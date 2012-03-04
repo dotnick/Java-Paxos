@@ -16,37 +16,45 @@ public class Data {
 	 * This will be used to replay the log in the case of a 
 	 * failure and (possibly) help new Paxos nodes catch up. 
 	 */
-	
-	private static HashMap<Integer,Command> data = new  HashMap<Integer,Command>(); //<Sequence Number, Command>
-	private static Vector<Integer> SeqNumbersProcessed = new Vector<Integer>(); // Used for Map indexing
+	public  HashMap<String,String> data;
+	public  HashMap<Integer,Command> commandsProcessed; //<Sequence Number, Command>
+	public  Vector<Integer> SeqNumbersProcessed;// Used for Map indexing
 	
 	public static AcceptRequestMessage accepted; // Wait for Accept notification before committing
 	private static Integer minSeqn;
 	
 	private final static int OK = 1;
 	private final static int OLD_ROUND = -1;
+
+	
+	public Data() {
+		
+		this.data = new HashMap<String,String>();
+		this.commandsProcessed = new  HashMap<Integer,Command>(); 
+		this.SeqNumbersProcessed = new Vector<Integer>();
+	}
 	
 	
-	public static void process(Object message) {
+	public void process(Object message) {
 		int result = 0;
 		if (message instanceof PrepareRequestMessage) {
 			PrepareRequestMessage PRM = (PrepareRequestMessage) message;
 			minSeqn = PRM.getSeqNo();
-			result = Data.processPrepareRequest(PRM);
+			result = processPrepareRequest(PRM);
 			if (result == OK) {
 				// Send promise
 			} 
 	
 		} else if (message instanceof AcceptRequestMessage) {
 			AcceptRequestMessage arm = (AcceptRequestMessage) message;
-			result = Data.processAcceptRequest(arm);
+			result = processAcceptRequest(arm);
 			if (result == OK) {
 				// Notify the leader that we accepted the message
 			} 
 
 		} else if (message instanceof AcceptNotificationMessage) {
 			AcceptNotificationMessage ANM = (AcceptNotificationMessage) message;
-			result = Data.commit(ANM);
+			result = commit(ANM);
 			if (result == OK) {
 				// Notify the leader/learners
 			} 
@@ -57,8 +65,8 @@ public class Data {
 		}
 	}
 	
-	public static int processAcceptRequest(AcceptRequestMessage ARM) {
-		if(ARM.getSeqNo() > getMinSeqn()) {
+	public int processAcceptRequest(AcceptRequestMessage ARM) {
+		if(ARM.getSeqNo() > this.getMinSeqn()) {
 			accepted = ARM;
 			return 1;
 		} else {
@@ -66,8 +74,8 @@ public class Data {
 		}
 	}
 	
-	public static int processPrepareRequest(PrepareRequestMessage PRM) {
-		if(PRM.getSeqNo() > getMinSeqn()) {
+	public int processPrepareRequest(PrepareRequestMessage PRM) {
+		if(PRM.getSeqNo() > this.getMinSeqn()) {
 			return 1;
 		} else {
 			return -1;
@@ -81,15 +89,16 @@ public class Data {
 	 */
 	@SuppressWarnings("unused")
 	private static  boolean isReadOperation(Command cmd) {
-		return cmd.getOperation().equals("READ");
+		return cmd.getOperation().equalsIgnoreCase("READ");
 	}
 	
-	private static int write(int seqn, Command cmd) {
-		data.put(seqn, cmd);
+	private int write(int seqn, Command cmd) {
+		commandsProcessed.put(seqn, cmd);
+		data.put(cmd.getVariable(), cmd.getValue());
 		return 1;
 	}
 	
-	public static int getLargestSeqNumber() {
+	public int getLargestSeqNumber() {
 		if (SeqNumbersProcessed.size() > 0 ) {
 			return SeqNumbersProcessed.lastElement();
 		} else {
@@ -98,7 +107,7 @@ public class Data {
 		
 	}
 	
-	public static int commit(AcceptNotificationMessage ANM) {
+	public int commit(AcceptNotificationMessage ANM) {
 		if(isCommandAccepted(ANM.getCommand())) {
 			SeqNumbersProcessed.add(ANM.getSeqNo());
 			accepted = null;
@@ -106,10 +115,9 @@ public class Data {
 		} else { // Should never happen
 			return -1;
 		}
-		
 	}
 	
-	public static int getMinSeqn() {
+	public int getMinSeqn() {
 		if(minSeqn != null ) {
 			return minSeqn;
 		} else {
@@ -118,7 +126,7 @@ public class Data {
 	}
 	
 	// Command.equals returned false even when commands were the same
-	public static boolean isCommandAccepted(Command cmd) {
+	public boolean isCommandAccepted(Command cmd) {
 		if(accepted != null) {
 		return (accepted.getCommand().getOperation().equals(cmd.getOperation())
 		 	 && accepted.getCommand().getVariable().equals(cmd.getVariable())
@@ -127,5 +135,5 @@ public class Data {
 		return false;
 		}
 	}
-
+	
 }

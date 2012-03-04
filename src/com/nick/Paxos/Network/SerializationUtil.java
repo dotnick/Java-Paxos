@@ -1,4 +1,4 @@
-package com.nick.Paxos;
+package com.nick.Paxos.Network;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -12,8 +12,9 @@ import java.io.ObjectOutputStream;
 public class SerializationUtil {
 
 	public static byte[] serialize(Object obj) throws IOException{
-		ByteArrayOutputStream baos = new ByteArrayOutputStream() ;
-		ObjectOutputStream oos = new ObjectOutputStream(baos) ;
+		
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ObjectOutputStream oos = new ObjectOutputStream(baos);
 	    oos.writeObject(obj);
 	    oos.flush();
 	    
@@ -22,6 +23,7 @@ public class SerializationUtil {
 	
 	
 	public static Object deSerialize(byte[] arr) throws IOException, ClassNotFoundException{
+		
 		ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(arr));
 		return ois.readObject();
 	}
