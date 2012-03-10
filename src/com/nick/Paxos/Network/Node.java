@@ -25,6 +25,11 @@ public class Node extends Thread {
 	private static final String GROUP = "239.0.0.1";
 	private static final int PORT = 1234;
 	
+	// Used by the leader to receive responses
+	@SuppressWarnings("unused")
+	private DatagramSocket leaderSocket;
+	private final int LEADER_PORT = 1235;
+	
 	// Heartbeat processing
 	private HeartbeatSender heartbeatSender;
 	private HeartbeatListener heartbeatListener;
@@ -33,20 +38,24 @@ public class Node extends Thread {
 	public HashMap<InetAddress, Integer> nodeTimers;
 	public Vector<InetAddress> nodes;
 	
-	public InetAddress leader;
 	private boolean running;
 	private Data data = new Data();
 	
 	private int DEFAULT_TIMER = 6;
 	
+	private int LEADER_HB = 1;
+	private int NORMAL_HB = 0;
+	
 	boolean isLeader = false;
 	private InetAddress leaderAddress = null;
+	private InetAddress localAddress;
 	
 	public Node() {	
 		
 		try {
 			 this.msocket = new MulticastSocket(PORT);
 			 this.msocket.joinGroup(InetAddress.getByName(GROUP));
+			 this.localAddress = InetAddress.getLocalHost();
 		} catch (IOException e) {
 			System.err.println("Error: Could not create multicast socket.");
 			cleanExit();
@@ -62,6 +71,42 @@ public class Node extends Thread {
 		DatagramPacket packet = null;
 		Object obj = null;
 		
+		checkForLeader();
+		
+		this.heartbeatListener = new HeartbeatListener();
+		this.heartbeatListener.start();
+		
+		while(running) {
+			
+			if(isLeader) {
+				
+			} else {
+				packet = receivePacket();
+				try {
+					obj = SerializationUtil.deSerialize(packet.getData());
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+		
+				if(obj!= null){
+					if(obj instanceof PaxosMessage) {
+						data.process(obj);			
+					} else if (obj instanceof HeartbeatMessage) {	
+						if(!packet.getAddress().equals(localAddress) ) {
+							resetNodeTimer(packet.getAddress());
+						}
+							
+					}
+				} else {
+					System.out.println("Error: Could not receive packet.");
+				}		
+			}
+		}
+	}
+	
+	private void checkForLeader() {
 		int secondsRemaining = 5; // Listen for 5 seconds for a leader
 		DatagramPacket pkt ;
 		Object _obj;
@@ -92,17 +137,14 @@ public class Node extends Thread {
 			secondsRemaining--;
 		}
 		
-		
-		if(!isLeader && leaderAddress == null) {
-			// Become Leader
-			System.out.println("Becoming leader..");
-			this.isLeader = true;
+		if(!isLeader && leaderAddress == null) { // Become Leader
+					
+			becomeLeader();
+			
 		} else {
 			System.out.println("Leader already exists..");
-			this.heartbeatSender = new HeartbeatSender();
+			this.heartbeatSender = new HeartbeatSender(NORMAL_HB);
 			this.heartbeatSender.start();	
-			this.heartbeatListener = new HeartbeatListener();
-			this.heartbeatListener.start();
 		}
 		
 		try {
@@ -111,35 +153,22 @@ public class Node extends Thread {
 			System.err.println("Error setting socket timeout.");
 			cleanExit();
 		}
+	}
+
+	private void becomeLeader() {
+		System.out.println("Becoming leader..");
+		this.isLeader = true;
+		this.heartbeatSender = new HeartbeatSender(LEADER_HB);
+		this.heartbeatSender.start();
 		
-		while(running) {
-			
-			if(isLeader) {
-				// send leader heartbeats
-		
-			} else {
-				packet = receivePacket();
-				try {
-					obj = SerializationUtil.deSerialize(packet.getData());
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-		
-				if(obj!= null){
-					if(obj instanceof PaxosMessage) {
-						data.process(obj);			
-					} else if (obj instanceof HeartbeatMessage) {	
-						resetNodeTimer(packet.getAddress());
-					}
-				} else {
-					System.out.println("Error: Could not receive packet.");
-				}		
-			}
+		try {
+			this.leaderSocket = new DatagramSocket(LEADER_PORT);
+		} catch (SocketException e) {
+			System.err.println("Error while creating leader socket.");
+			cleanExit();
 		}
 	}
-	
+
 	private void resetNodeTimer(InetAddress node) {
 		
 		if(!nodes.contains(node)) {
@@ -203,7 +232,7 @@ public class Node extends Thread {
 					nodeTimers.put(node, --currentTime);
 					
 					if(nodeTimers.get(node) < 1) {
-						if(node.equals(leader)) {
+						if(node.equals(leaderAddress)) {
 							// New leader election
 						}
 						System.out.println("Node " + node.toString() + " timed-out.");
@@ -224,9 +253,11 @@ public class Node extends Thread {
     private class HeartbeatSender extends Thread {
 		
     	private boolean running;
+		private int type;
 		
-		public HeartbeatSender() {
+		public HeartbeatSender(int type) {
 			this.running = true;
+			this.type = type;
 		}
 		
 		public void run() {
@@ -236,7 +267,11 @@ public class Node extends Thread {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				sendPacket(new HeartbeatMessage());
+				if(type == LEADER_HB) {
+					sendPacket(new LeaderHeartbeatMessage());
+				} else {
+					sendPacket(new HeartbeatMessage());
+				}
 			}
 		}
 	}
@@ -247,4 +282,5 @@ public class Node extends Thread {
     	this.interrupt();
     	System.exit(0);
     }
+    
 }
