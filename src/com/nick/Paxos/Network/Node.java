@@ -6,11 +6,13 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Vector;
 
 import com.nick.Paxos.Data;
 import com.nick.Paxos.Messages.HeartbeatMessage;
+import com.nick.Paxos.Messages.LeaderHeartbeatMessage;
 import com.nick.Paxos.Messages.PaxosMessage;
 import com.nick.Paxos.Network.SerializationUtil;
 
@@ -37,6 +39,9 @@ public class Node extends Thread {
 	
 	private int DEFAULT_TIMER = 6;
 	
+	boolean isLeader = false;
+	private InetAddress leaderAddress = null;
+	
 	public Node() {	
 		
 		try {
@@ -44,43 +49,94 @@ public class Node extends Thread {
 			 this.msocket.joinGroup(InetAddress.getByName(GROUP));
 		} catch (IOException e) {
 			System.err.println("Error: Could not create multicast socket.");
-			System.exit(1);
+			cleanExit();
 		}
 		
 		this.nodes = new Vector<InetAddress>();
 		this.nodeTimers = new HashMap<InetAddress, Integer>();
-		this.heartbeatSender = new HeartbeatSender();
-		this.heartbeatSender.start();	
-		this.heartbeatListener = new HeartbeatListener();
-		this.heartbeatListener.start();
 		this.running = true;
 	}
 	
 	public void run() {
 		
-		DatagramPacket packet;
+		DatagramPacket packet = null;
 		Object obj = null;
 		
-		while(running) {
-			packet = receivePacket();
-
+		int secondsRemaining = 5; // Listen for 5 seconds for a leader
+		DatagramPacket pkt ;
+		Object _obj;
+		byte[] _buff = new byte[512];
+		while(!isLeader && leaderAddress == null && secondsRemaining > 0) {
+			pkt = new DatagramPacket(_buff, _buff.length);
+			_obj = null;
 			try {
-				obj = SerializationUtil.deSerialize(packet.getData());
-			} catch (IOException e) {
-				e.printStackTrace();
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+				msocket.setSoTimeout(1000);
+			} catch (SocketException e1) {
+				e1.printStackTrace();
 			}
+			pkt = receivePacket();
 			
-			if(obj!= null){
-				if(obj instanceof PaxosMessage) {
-					data.process(obj);			
-				} else if (obj instanceof HeartbeatMessage) {	
-					resetNodeTimer(packet.getAddress());
+			if(pkt != null) {
+				try {	
+					_obj = SerializationUtil.deSerialize(pkt.getData());
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}	 
+					
+				if(_obj != null && _obj instanceof LeaderHeartbeatMessage) {
+					leaderAddress = pkt.getAddress();
 				}
+			}	
+			secondsRemaining--;
+		}
+		
+		
+		if(!isLeader && leaderAddress == null) {
+			// Become Leader
+			System.out.println("Becoming leader..");
+			this.isLeader = true;
+		} else {
+			System.out.println("Leader already exists..");
+			this.heartbeatSender = new HeartbeatSender();
+			this.heartbeatSender.start();	
+			this.heartbeatListener = new HeartbeatListener();
+			this.heartbeatListener.start();
+		}
+		
+		try {
+			msocket.setSoTimeout(0);
+		} catch (SocketException e1) {
+			System.err.println("Error setting socket timeout.");
+			cleanExit();
+		}
+		
+		while(running) {
+			
+			if(isLeader) {
+				// send leader heartbeats
+		
 			} else {
-				System.out.println("Error: Could not receive packet.");
-			}		
+				packet = receivePacket();
+				try {
+					obj = SerializationUtil.deSerialize(packet.getData());
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+		
+				if(obj!= null){
+					if(obj instanceof PaxosMessage) {
+						data.process(obj);			
+					} else if (obj instanceof HeartbeatMessage) {	
+						resetNodeTimer(packet.getAddress());
+					}
+				} else {
+					System.out.println("Error: Could not receive packet.");
+				}		
+			}
 		}
 	}
 	
@@ -89,7 +145,7 @@ public class Node extends Thread {
 		if(!nodes.contains(node)) {
 			nodes.add(node);
 		}
-			nodeTimers.put(node, DEFAULT_TIMER);
+		nodeTimers.put(node, DEFAULT_TIMER);
 	}
 	
 	public int sendPacket(Object obj) {
@@ -112,6 +168,8 @@ public class Node extends Thread {
 		DatagramPacket inputPacket = new DatagramPacket(buf,buf.length);
 		try {
 				msocket.receive(inputPacket);
+			} catch (SocketTimeoutException ste) {
+				return null;
 			} catch (IOException e) {
 				System.err.println("Could not receive packet.");		
 			}	
@@ -139,6 +197,7 @@ public class Node extends Thread {
 		public void run() {
 			while(running) {
 				for(InetAddress node : nodes) {
+					// For debugging
 					int currentTime = nodeTimers.get(node);
 					System.out.println("Current time: " + currentTime);
 					nodeTimers.put(node, --currentTime);
@@ -169,6 +228,7 @@ public class Node extends Thread {
 		public HeartbeatSender() {
 			this.running = true;
 		}
+		
 		public void run() {
 			while(running) {
 				try {
@@ -180,4 +240,11 @@ public class Node extends Thread {
 			}
 		}
 	}
+    
+    public void cleanExit() {
+    	this.heartbeatListener.interrupt();
+    	this.heartbeatSender.interrupt();
+    	this.interrupt();
+    	System.exit(0);
+    }
 }

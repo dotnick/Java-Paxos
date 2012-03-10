@@ -30,8 +30,7 @@ public class Paxos extends SerializationUtil {
 	public static int getProcn() {
 		return procn;
 	}
-
-			
+		
 }
 
 
