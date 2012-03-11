@@ -3,9 +3,12 @@ import java.util.HashMap;
 import java.util.Vector;
 
 import com.nick.Paxos.Messages.AcceptNotificationMessage;
+import com.nick.Paxos.Messages.AcceptReplyMessage;
 import com.nick.Paxos.Messages.AcceptRequestMessage;
+import com.nick.Paxos.Messages.AcceptedNotificationMessage;
 import com.nick.Paxos.Messages.PrepareRequestMessage;
-
+import com.nick.Paxos.Messages.PromiseMessage;
+import com.nick.Paxos.Network.*;
 
 public class Data {
 	
@@ -25,6 +28,7 @@ public class Data {
 	
 	private final static int OK = 1;
 	private final static int OLD_ROUND = -1;
+	
 
 	
 	public Data() {
@@ -42,21 +46,24 @@ public class Data {
 			minSeqn = PRM.getSeqNo();
 			result = processPrepareRequest(PRM);
 			if (result == OK) {
-				// Send promise
+				// Send Promise
+				Node.respondToLeader(new PromiseMessage(PRM.getSeqNo()));
 			} 
 	
 		} else if (message instanceof AcceptRequestMessage) {
 			AcceptRequestMessage arm = (AcceptRequestMessage) message;
 			result = processAcceptRequest(arm);
 			if (result == OK) {
-				// Notify the leader that we accepted the message
+				// Notify the leader that we accept the request
+				Node.respondToLeader(new AcceptReplyMessage(arm.getSeqNo()));
 			} 
 
 		} else if (message instanceof AcceptNotificationMessage) {
 			AcceptNotificationMessage ANM = (AcceptNotificationMessage) message;
-			result = commit(ANM);
+			result = commit(ANM); 
 			if (result == OK) {
-				// Notify the leader/learners
+				// Notify that we commited the proposal 
+				Node.sendMessage(new AcceptedNotificationMessage(ANM.getSeqNo(), ANM.getCommand()));
 			} 
 		}
 		

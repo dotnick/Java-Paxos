@@ -6,7 +6,7 @@ import com.nick.Paxos.Network.*;
 public class Paxos extends SerializationUtil {
 	
 	private static int procn;
-	private static Node node;
+	public static Node node;
 	
 	public static void main(String[] args) {
 			

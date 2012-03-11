@@ -17,6 +17,7 @@ import com.nick.Paxos.Messages.PaxosMessage;
 import com.nick.Paxos.Network.SerializationUtil;
 
 
+
 public class Node extends Thread {
 	
 	
@@ -28,7 +29,7 @@ public class Node extends Thread {
 	// Used by the leader to receive responses
 	@SuppressWarnings("unused")
 	private DatagramSocket leaderSocket;
-	private final int LEADER_PORT = 1235;
+	private final static int LEADER_PORT = 1235;
 	
 	// Heartbeat processing
 	private HeartbeatSender heartbeatSender;
@@ -47,7 +48,7 @@ public class Node extends Thread {
 	private int NORMAL_HB = 0;
 	
 	boolean isLeader = false;
-	private InetAddress leaderAddress = null;
+	private static InetAddress leaderAddress = null;
 	private InetAddress localAddress;
 	
 	public Node() {	
@@ -81,14 +82,8 @@ public class Node extends Thread {
 			if(isLeader) {
 				
 			} else {
-				packet = receivePacket();
-				try {
-					obj = SerializationUtil.deSerialize(packet.getData());
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
+				packet = receiveMessage();
+				obj = SerializationUtil.deSerialize(packet.getData());
 		
 				if(obj!= null){
 					if(obj instanceof PaxosMessage) {
@@ -96,8 +91,7 @@ public class Node extends Thread {
 					} else if (obj instanceof HeartbeatMessage) {	
 						if(!packet.getAddress().equals(localAddress) ) {
 							resetNodeTimer(packet.getAddress());
-						}
-							
+						}			
 					}
 				} else {
 					System.out.println("Error: Could not receive packet.");
@@ -119,16 +113,10 @@ public class Node extends Thread {
 			} catch (SocketException e1) {
 				e1.printStackTrace();
 			}
-			pkt = receivePacket();
+			pkt = receiveMessage();
 			
 			if(pkt != null) {
-				try {	
-					_obj = SerializationUtil.deSerialize(pkt.getData());
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}	 
+				_obj = SerializationUtil.deSerialize(pkt.getData());	 
 					
 				if(_obj != null && _obj instanceof LeaderHeartbeatMessage) {
 					leaderAddress = pkt.getAddress();
@@ -177,7 +165,7 @@ public class Node extends Thread {
 		nodeTimers.put(node, DEFAULT_TIMER);
 	}
 	
-	public int sendPacket(Object obj) {
+	public static int sendMessage(Object obj) {
 		
 		byte[] buff;
 		try {
@@ -191,7 +179,7 @@ public class Node extends Thread {
 		}	
 	}
 	
-	public DatagramPacket receivePacket() { 
+	public DatagramPacket receiveMessage() { 
 		
 		byte[] buf = new byte[1024];
 		DatagramPacket inputPacket = new DatagramPacket(buf,buf.length);
@@ -205,14 +193,24 @@ public class Node extends Thread {
 		return inputPacket;
 	}
 	
-	public static void respontToLeader(PaxosMessage message) throws SocketException {
+	public static void respondToLeader(PaxosMessage message) {
 		
-		//byte[] buff = SerializationUtil.serialize(message);
-		//DatagramPacket response = new DatagramPacket(buff, buff.length, leader , port)
-		//DatagramSocket dsToLeader = new DatagramSocket();
-		//ds.send(response);
-				
+		byte[] buff = SerializationUtil.serialize(message);
+		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_PORT);
+		DatagramSocket socketToLeader = null;
+		
+		try {
+			socketToLeader = new DatagramSocket();
+		} catch (SocketException e1) {
+			System.err.println("Error while creating socket to leader.");
+			return;
 		}
+		try {
+			socketToLeader.send(response);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}		
+	}
 	
 	
 	private class HeartbeatListener extends Thread {
@@ -268,9 +266,9 @@ public class Node extends Thread {
 					e.printStackTrace();
 				}
 				if(type == LEADER_HB) {
-					sendPacket(new LeaderHeartbeatMessage());
+					sendMessage(new LeaderHeartbeatMessage());
 				} else {
-					sendPacket(new HeartbeatMessage());
+					sendMessage(new HeartbeatMessage());
 				}
 			}
 		}
