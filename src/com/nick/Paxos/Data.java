@@ -6,6 +6,7 @@ import com.nick.Paxos.Messages.AcceptNotificationMessage;
 import com.nick.Paxos.Messages.AcceptReplyMessage;
 import com.nick.Paxos.Messages.AcceptRequestMessage;
 import com.nick.Paxos.Messages.AcceptedNotificationMessage;
+import com.nick.Paxos.Messages.OldRoundMessage;
 import com.nick.Paxos.Messages.PrepareRequestMessage;
 import com.nick.Paxos.Messages.PromiseMessage;
 import com.nick.Paxos.Network.*;
@@ -29,7 +30,6 @@ public class Data {
 	private final static int OK = 1;
 	private final static int OLD_ROUND = -1;
 	
-
 	
 	public Data() {
 		
@@ -43,9 +43,9 @@ public class Data {
 		int result = 0;
 		if (message instanceof PrepareRequestMessage) {
 			PrepareRequestMessage PRM = (PrepareRequestMessage) message;
-			minSeqn = PRM.getSeqNo();
 			result = processPrepareRequest(PRM);
 			if (result == OK) {
+				minSeqn = PRM.getSeqNo();
 				// Send Promise
 				Node.respondToLeader(new PromiseMessage(PRM.getSeqNo()));
 			} 
@@ -68,7 +68,7 @@ public class Data {
 		}
 		
 		if (result == OLD_ROUND) {
-			// Send OldRound
+			Node.respondToLeader(new OldRoundMessage());
 		}
 	}
 	
