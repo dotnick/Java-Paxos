@@ -73,7 +73,7 @@ public class Data {
 	}
 	
 	public int processAcceptRequest(AcceptRequestMessage ARM) {
-		if(ARM.getSeqNo() > this.getMinSeqn()) {
+		if(ARM.getSeqNo() >= this.getMinSeqn()) {
 			accepted = ARM;
 			return 1;
 		} else {

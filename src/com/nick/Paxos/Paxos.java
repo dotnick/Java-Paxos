@@ -30,6 +30,15 @@ public class Paxos extends SerializationUtil {
 	public static int getProcn() {
 		return procn;
 	}
+	
+	public static void cleanExit() {
+    	node.heartbeatListener.running = false;
+    	node.heartbeatSender.running = false;
+    	node.leaderListener.running = false;
+    	node.leaderProc.running = false;
+    	node.running = false;
+    	System.exit(0);
+    }
 		
 }
 

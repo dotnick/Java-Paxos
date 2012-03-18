@@ -12,7 +12,7 @@ public abstract class PaxosMessage implements Serializable {
 	
 	private int seqn;
 	private final int procn = Paxos.getProcn();
-
+	
 	
 	public int getSeqNo() {
 		return seqn;

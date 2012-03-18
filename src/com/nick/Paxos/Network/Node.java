@@ -7,49 +7,59 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Vector;
 
 import com.nick.Paxos.Data;
+import com.nick.Paxos.Paxos;
+import com.nick.Paxos.Messages.ElectionMessage;
 import com.nick.Paxos.Messages.HeartbeatMessage;
 import com.nick.Paxos.Messages.LeaderHeartbeatMessage;
+import com.nick.Paxos.Messages.NewLeaderMessage;
 import com.nick.Paxos.Messages.PaxosMessage;
 import com.nick.Paxos.Network.SerializationUtil;
+import com.nick.Paxos.Network.Leader.LeaderListener;
+import com.nick.Paxos.Network.Leader.LeaderProcessor;
 
 
 
 public class Node extends Thread {
-	
+
 	
 	// Multicast group and port
 	private MulticastSocket msocket;
 	private static final String GROUP = "239.0.0.1";
 	private static final int PORT = 1234;
 	
-	// Used by the leader to receive responses
-	@SuppressWarnings("unused")
-	private DatagramSocket leaderSocket;
-	private final static int LEADER_PORT = 1235;
+	private final static int LEADER_REPLIES_PORT = 1235;	
+	private final static int LEADER_LISTENER_PORT = 1236;
+
 	
 	// Heartbeat processing
-	private HeartbeatSender heartbeatSender;
-	private HeartbeatListener heartbeatListener;
+	public HeartbeatSender heartbeatSender;
+	public HeartbeatListener heartbeatListener;
 	
 	// List of online nodes and timeout timers
 	public HashMap<InetAddress, Integer> nodeTimers;
 	public Vector<InetAddress> nodes;
 	
-	private boolean running;
+	public boolean running;
 	private Data data = new Data();
 	
 	private int DEFAULT_TIMER = 6;
 	
+	// Heartbeat Types
 	private int LEADER_HB = 1;
 	private int NORMAL_HB = 0;
 	
 	boolean isLeader = false;
 	private static InetAddress leaderAddress = null;
+	
 	private InetAddress localAddress;
+	
+	public LeaderProcessor leaderProc;
+	public LeaderListener leaderListener;
 	
 	public Node() {	
 		
@@ -59,7 +69,7 @@ public class Node extends Thread {
 			 this.localAddress = InetAddress.getLocalHost();
 		} catch (IOException e) {
 			System.err.println("Error: Could not create multicast socket.");
-			cleanExit();
+			Paxos.cleanExit();
 		}
 		
 		this.nodes = new Vector<InetAddress>();
@@ -79,28 +89,44 @@ public class Node extends Thread {
 		
 		while(running) {
 			
-			if(isLeader) {
-				
-			} else {
-				packet = receiveMessage();
-				obj = SerializationUtil.deSerialize(packet.getData());
+			packet = receiveMessage();
+			obj = SerializationUtil.deSerialize(packet.getData());
 		
-				if(obj!= null){
-					if(obj instanceof PaxosMessage) {
-						data.process(obj);			
-					} else if (obj instanceof HeartbeatMessage) {	
-						if(!packet.getAddress().equals(localAddress) ) {
-							resetNodeTimer(packet.getAddress());
-						}			
+			if(obj!= null){		
+				if(obj instanceof PaxosMessage) {
+					data.process(obj);			
+				} else if (obj instanceof HeartbeatMessage) {	
+					if(!packet.getAddress().equals(localAddress) ) {
+						resetNodeTimer(packet.getAddress());
+					}			
+				} else if (obj instanceof ElectionMessage) {
+					leaderAddress = null;
+					ElectionMessage em = (ElectionMessage) obj;
+					if(em.getProcn() < Paxos.getProcn()) {
+						System.out.println("Election message from lower process, bullying..");
+						sendMessage(new ElectionMessage(Paxos.getProcn()));
+					} else {
+						System.out.println("Election message from higher process, will wait for new leader..");
+						Object _obj;
+						DatagramPacket _packet;
+						while(leaderAddress == null) {
+							_packet=receiveMessage();
+							_obj = SerializationUtil.deSerialize(_packet.getData());
+							if(_obj instanceof NewLeaderMessage) {
+								leaderAddress = _packet.getAddress();
+							}
+						}
 					}
-				} else {
-					System.out.println("Error: Could not receive packet.");
-				}		
-			}
+				} 
+			} else {
+				System.out.println("Error: Could not receive packet.");
+			}		
 		}
 	}
 	
+	
 	private void checkForLeader() {
+		
 		int secondsRemaining = 5; // Listen for 5 seconds for a leader
 		DatagramPacket pkt ;
 		Object _obj;
@@ -125,7 +151,7 @@ public class Node extends Thread {
 			secondsRemaining--;
 		}
 		
-		if(!isLeader && leaderAddress == null) { // Become Leader
+		if(!isLeader && leaderAddress == null) { 
 					
 			becomeLeader();
 			
@@ -139,22 +165,26 @@ public class Node extends Thread {
 			msocket.setSoTimeout(0);
 		} catch (SocketException e1) {
 			System.err.println("Error setting socket timeout.");
-			cleanExit();
+			Paxos.cleanExit();
 		}
 	}
 
 	private void becomeLeader() {
 		System.out.println("Becoming leader..");
+		
+		try {
+			leaderAddress = InetAddress.getLocalHost();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		}
 		this.isLeader = true;
 		this.heartbeatSender = new HeartbeatSender(LEADER_HB);
 		this.heartbeatSender.start();
 		
-		try {
-			this.leaderSocket = new DatagramSocket(LEADER_PORT);
-		} catch (SocketException e) {
-			System.err.println("Error while creating leader socket.");
-			cleanExit();
-		}
+		leaderProc = new LeaderProcessor();
+		leaderProc.start();
+		leaderListener = new LeaderListener(LEADER_LISTENER_PORT);
+		leaderListener.start();
 	}
 
 	private void resetNodeTimer(InetAddress node) {
@@ -196,7 +226,7 @@ public class Node extends Thread {
 	public static void respondToLeader(PaxosMessage message) {
 		
 		byte[] buff = SerializationUtil.serialize(message);
-		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_PORT);
+		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_REPLIES_PORT);
 		DatagramSocket socketToLeader = null;
 		
 		try {
@@ -213,9 +243,9 @@ public class Node extends Thread {
 	}
 	
 	
-	private class HeartbeatListener extends Thread {
+	public class HeartbeatListener extends Thread {
 		
-		boolean running;
+		public boolean running;
 		public HeartbeatListener() {
 			this.running = true;
 		}
@@ -223,19 +253,19 @@ public class Node extends Thread {
 		@Override
 		public void run() {
 			while(running) {
-				for(InetAddress node : nodes) {
+				for(int i=0;i<nodes.size(); i++) {
 					// For debugging
-					int currentTime = nodeTimers.get(node);
+					int currentTime = nodeTimers.get(nodes.elementAt(i));
 					System.out.println("Current time: " + currentTime);
-					nodeTimers.put(node, --currentTime);
+					nodeTimers.put(nodes.elementAt(i), --currentTime);
 					
-					if(nodeTimers.get(node) < 1) {
-						if(node.equals(leaderAddress)) {
+					if(nodeTimers.get(nodes.elementAt(i)) < 1) {
+						if(nodes.elementAt(i).equals(leaderAddress)) {
 							// New leader election
 						}
-						System.out.println("Node " + node.toString() + " timed-out.");
-						nodeTimers.remove(node);
-						nodes.remove(node);
+						System.out.println("Node " + nodes.elementAt(i).toString() + " timed-out.");
+						nodeTimers.remove(nodes.elementAt(i));
+						nodes.remove(nodes.elementAt(i));
 						// Notify the rest of the nodes?
 					}
 				}
@@ -248,9 +278,9 @@ public class Node extends Thread {
 		}
 	}
 	
-    private class HeartbeatSender extends Thread {
+    public class HeartbeatSender extends Thread {
 		
-    	private boolean running;
+    	public boolean running;
 		private int type;
 		
 		public HeartbeatSender(int type) {
@@ -274,11 +304,10 @@ public class Node extends Thread {
 		}
 	}
     
-    public void cleanExit() {
-    	this.heartbeatListener.interrupt();
-    	this.heartbeatSender.interrupt();
-    	this.interrupt();
-    	System.exit(0);
-    }
+    
+    
+    
     
 }
+
+
