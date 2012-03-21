@@ -24,6 +24,8 @@ public class Data {
 	public  HashMap<Integer,Command> commandsProcessed; //<Sequence Number, Command>
 	public  Vector<Integer> SeqNumbersProcessed;// Used for Map indexing
 	
+	//TODO: Fixed list of nodes for quorum
+	
 	public static AcceptRequestMessage accepted; // Wait for Accept notification before committing
 	private static Integer minSeqn;
 	
@@ -89,15 +91,6 @@ public class Data {
 		}
 	}
 	
-	/* 
-	 * Will be used by the leader in the future 
-	 * to reply to read requests without
-	 * going through a Paxos round.
-	 */
-	@SuppressWarnings("unused")
-	private static  boolean isReadOperation(Command cmd) {
-		return cmd.getOperation().equalsIgnoreCase("READ");
-	}
 	
 	private int write(int seqn, Command cmd) {
 		commandsProcessed.put(seqn, cmd);

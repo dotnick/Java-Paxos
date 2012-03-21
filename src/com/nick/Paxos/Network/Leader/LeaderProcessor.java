@@ -28,6 +28,7 @@ public class LeaderProcessor extends Thread  {
 		
 	private PaxosQueue queue;
 	private DatagramSocket toGroup;
+	private DatagramSocket replySocket;
 	
 	private int minSeqn;
 	
@@ -74,18 +75,34 @@ public class LeaderProcessor extends Thread  {
 				
 					if(acceptReply == SUCCESS) { 
 						System.out.println("Received enough accepts. Value accepted.");
-						sendAcceptNotification(queue.dequeue());
+						sendAcceptNotification(queue.peek());
+						
 						increaseSeqNo();
 					} else {
+						System.out.println("Received Old Round for sequence number " + this.minSeqn + ". Increasing to " + (this.minSeqn + 5));
 						increaseSeqNo();
 					}
 				} else {
+					System.out.println("Received Old Round for sequence number " + this.minSeqn + ". Increasing to " + (this.minSeqn + 5));
 					increaseSeqNo();
 				}
 			}
 		}
 	}
 	
+	public void resultReply(String s, InetAddress to) {
+		try {
+			replySocket = new DatagramSocket();
+			byte[] buf = SerializationUtil.serialize(s);
+			DatagramPacket dp = new DatagramPacket(buf,buf.length,to,1237);
+			replySocket.send(dp);
+		} catch (SocketException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		replySocket.close();
+	}
 	
 	private void sendAcceptNotification(Command cmd) {
 		AcceptNotificationMessage ANM = new AcceptNotificationMessage(minSeqn, cmd);
@@ -133,13 +150,13 @@ public class LeaderProcessor extends Thread  {
 		byte[] receiveBuf = new byte[512];
 		DatagramPacket receivePacket = new DatagramPacket(receiveBuf,receiveBuf.length);
 		try {
-			leaderRepliesSocket.setSoTimeout(500);
+			leaderRepliesSocket.setSoTimeout(250);
 		} catch (SocketException e1) {
 			e1.printStackTrace();
 		}
 		
 		int accepts = 0;
-		int timeout = 4; //Wait 2 seconds for replies
+		int timeout = 8; //Wait 2 seconds for replies
 		
 		while(timeout > 0 && accepts < ((QUORUM/2)+1) ) {
 			try {

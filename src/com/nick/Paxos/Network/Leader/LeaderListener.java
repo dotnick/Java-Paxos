@@ -32,12 +32,22 @@ public class LeaderListener extends Thread {
 				listenSocket.receive(packet);
 				Object obj = SerializationUtil.deSerialize(buf);
 				if(obj instanceof Command) {
-					Paxos.node.leaderProc.enqueueCommand((Command) obj);
+					Command cmd = (Command) obj;
+					if(isReadOperation(cmd)) {
+						Paxos.node.leaderProc.resultReply(Paxos.node.data.data.get(cmd.getVariable()), cmd.getFromAddress());
+					} else {
+					Paxos.node.leaderProc.enqueueCommand(cmd);
+					}
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
+		
+		
 	}
 	
+	private boolean isReadOperation(Command cmd) {
+		return cmd.getOperation().equalsIgnoreCase("READ");
+	}
 }

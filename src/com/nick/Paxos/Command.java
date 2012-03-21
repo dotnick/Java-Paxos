@@ -1,6 +1,7 @@
 package com.nick.Paxos;
 
 import java.io.Serializable;
+import java.net.InetAddress;
 
 public class Command implements Serializable {
 	
@@ -19,11 +20,17 @@ public class Command implements Serializable {
 	private String operation;
 	private String variable;
 	private String value;
+	private InetAddress from;
 	
-	public Command(String operation, String variable, String value) {
+	public Command(String operation, String variable, String value, InetAddress from) {
 		this.operation = operation;
 		this.variable = variable;
 		this.value = value;
+		this.from = from;
+	}
+	
+	public InetAddress getFromAddress() {
+		return this.from;
 	}
 	
 	public String getOperation() {

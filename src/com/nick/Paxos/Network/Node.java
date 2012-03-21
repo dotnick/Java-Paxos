@@ -45,7 +45,7 @@ public class Node extends Thread {
 	public Vector<InetAddress> nodes;
 	
 	public boolean running;
-	private Data data = new Data();
+	public Data data = new Data();
 	
 	private int DEFAULT_TIMER = 6;
 	
@@ -256,16 +256,17 @@ public class Node extends Thread {
 				for(int i=0;i<nodes.size(); i++) {
 					// For debugging
 					int currentTime = nodeTimers.get(nodes.elementAt(i));
-					System.out.println("Current time: " + currentTime);
+					
 					nodeTimers.put(nodes.elementAt(i), --currentTime);
 					
 					if(nodeTimers.get(nodes.elementAt(i)) < 1) {
 						if(nodes.elementAt(i).equals(leaderAddress)) {
 							// New leader election
 						}
+						
 						System.out.println("Node " + nodes.elementAt(i).toString() + " timed-out.");
-						nodeTimers.remove(nodes.elementAt(i));
-						nodes.remove(nodes.elementAt(i));
+						//nodeTimers.remove(nodes.elementAt(i));
+						//nodes.remove(nodes.elementAt(i));
 						// Notify the rest of the nodes?
 					}
 				}
