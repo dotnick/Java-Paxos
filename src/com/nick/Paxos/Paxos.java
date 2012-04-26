@@ -61,11 +61,14 @@ public class Paxos extends SerializationUtil {
 	}
 	
 	public static void cleanExit() {
+		try{
     	node.heartbeatListener.running = false;
     	node.heartbeatSender.running = false;
     	node.leaderListener.running = false;
     	node.leaderProc.running = false;
-    	node.running = false;
+		} catch(NullPointerException npe){}
+		System.out.println("Bye..");
+		node.running = false;
     	System.exit(0);
     }
 		

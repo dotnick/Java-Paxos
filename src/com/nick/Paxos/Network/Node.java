@@ -13,12 +13,14 @@ import java.util.Vector;
 
 import com.nick.Paxos.Data;
 import com.nick.Paxos.Paxos;
+import com.nick.Paxos.UpdateLog;
+import com.nick.Paxos.Messages.AcceptedNotificationMessage;
+import com.nick.Paxos.Messages.CatchUpRequestMessage;
 import com.nick.Paxos.Messages.ElectionMessage;
 import com.nick.Paxos.Messages.HeartbeatMessage;
 import com.nick.Paxos.Messages.LeaderHeartbeatMessage;
 import com.nick.Paxos.Messages.NewLeaderMessage;
 import com.nick.Paxos.Messages.PaxosMessage;
-import com.nick.Paxos.Network.SerializationUtil;
 import com.nick.Paxos.Network.Leader.LeaderListener;
 import com.nick.Paxos.Network.Leader.LeaderProcessor;
 
@@ -34,11 +36,13 @@ public class Node extends Thread {
 	
 	private final static int LEADER_REPLIES_PORT = 1235;	
 	private final static int LEADER_LISTENER_PORT = 1236;
+	private final static int LEADER_SYNC_PORT = 1237;
 
+	private boolean isLearner = false;
 	
 	// Heartbeat processing
 	public HeartbeatSender heartbeatSender;
-	public HeartbeatListener heartbeatListener;
+	public HeartbeatProcess heartbeatListener;
 	
 	// List of online nodes and timeout timers
 	public HashMap<InetAddress, Integer> nodeTimers;
@@ -84,7 +88,7 @@ public class Node extends Thread {
 		
 		checkForLeader();
 		
-		this.heartbeatListener = new HeartbeatListener();
+		this.heartbeatListener = new HeartbeatProcess();
 		this.heartbeatListener.start();
 		
 		while(running) {
@@ -94,19 +98,49 @@ public class Node extends Thread {
 		
 			if(obj!= null){		
 				if(obj instanceof PaxosMessage) {
-					data.process(obj);			
+					if(!isLearner){
+						data.process(obj);
+					} else if(obj instanceof AcceptedNotificationMessage) {
+						// TODO: Append at the end of UpdateLog
+					}
 				} else if (obj instanceof HeartbeatMessage) {	
 					if(!packet.getAddress().equals(localAddress) ) {
 						resetNodeTimer(packet.getAddress());
+						if(obj instanceof LeaderHeartbeatMessage) {
+							System.out.println("New leader hb. Should sync..");
+							LeaderHeartbeatMessage lhbm = (LeaderHeartbeatMessage) SerializationUtil.deSerialize(packet.getData());
+							if(lhbm.getLatestRound() > data.getLargestSeqNumber()) {
+								this.isLearner = true;
+								System.out.println("Missing rounds. Will sync with leader..");
+								// TODO: Move to another thread.
+								respondToLeader(new CatchUpRequestMessage(data.getLargestSeqNumber()));
+								try {
+									DatagramSocket syncFromLeader = new DatagramSocket(LEADER_SYNC_PORT);
+									byte[] buf = new byte[2048];
+									DatagramPacket syncPacket = new DatagramPacket(buf,buf.length);
+									syncFromLeader.receive(syncPacket);
+									UpdateLog log = (UpdateLog) SerializationUtil.deSerialize(syncPacket.getData());
+									for(int i=0;i<log.getSeqNumbers().size();i++){
+										Paxos.node.data.addFromSync(log.getSeqNumbers().elementAt(i), log.getCommands().get(log.getSeqNumbers().elementAt(i)));
+									}
+									isLearner = false;
+								} catch (SocketException e) {
+									e.printStackTrace();
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}
+						}
 					}			
 				} else if (obj instanceof ElectionMessage) {
 					leaderAddress = null;
 					ElectionMessage em = (ElectionMessage) obj;
 					if(em.getProcn() < Paxos.getProcn()) {
 						System.out.println("Election message from lower process, bullying..");
-						sendMessage(new ElectionMessage(Paxos.getProcn()));
+						sendMessageToGroup(new ElectionMessage(Paxos.getProcn()));
 					} else {
 						System.out.println("Election message from higher process, will wait for new leader..");
+					}
 						Object _obj;
 						DatagramPacket _packet;
 						while(leaderAddress == null) {
@@ -115,7 +149,7 @@ public class Node extends Thread {
 							if(_obj instanceof NewLeaderMessage) {
 								leaderAddress = _packet.getAddress();
 							}
-						}
+					
 					}
 				} 
 			} else {
@@ -195,7 +229,7 @@ public class Node extends Thread {
 		nodeTimers.put(node, DEFAULT_TIMER);
 	}
 	
-	public static int sendMessage(Object obj) {
+	public static int sendMessageToGroup(Object obj) {
 		
 		byte[] buff;
 		try {
@@ -223,7 +257,7 @@ public class Node extends Thread {
 		return inputPacket;
 	}
 	
-	public static void respondToLeader(PaxosMessage message) {
+	public static void respondToLeader(Object message) {
 		
 		byte[] buff = SerializationUtil.serialize(message);
 		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_REPLIES_PORT);
@@ -242,21 +276,23 @@ public class Node extends Thread {
 		}		
 	}
 	
+	public int getQuorumSize() {
+		return this.nodes.size();
+	}
 	
-	public class HeartbeatListener extends Thread {
+	
+	public class HeartbeatProcess extends Thread {
 		
 		public boolean running;
-		public HeartbeatListener() {
+		public HeartbeatProcess() {
 			this.running = true;
 		}
 		
 		@Override
 		public void run() {
 			while(running) {
-				for(int i=0;i<nodes.size(); i++) {
-					// For debugging
-					int currentTime = nodeTimers.get(nodes.elementAt(i));
-					
+				for(int i=0;i<nodes.size(); i++) {		
+					int currentTime = nodeTimers.get(nodes.elementAt(i));		
 					nodeTimers.put(nodes.elementAt(i), --currentTime);
 					
 					if(nodeTimers.get(nodes.elementAt(i)) < 1) {
@@ -265,8 +301,6 @@ public class Node extends Thread {
 						}
 						
 						System.out.println("Node " + nodes.elementAt(i).toString() + " timed-out.");
-						//nodeTimers.remove(nodes.elementAt(i));
-						//nodes.remove(nodes.elementAt(i));
 						// Notify the rest of the nodes?
 					}
 				}
@@ -297,9 +331,9 @@ public class Node extends Thread {
 					e.printStackTrace();
 				}
 				if(type == LEADER_HB) {
-					sendMessage(new LeaderHeartbeatMessage());
+					sendMessageToGroup(new LeaderHeartbeatMessage(data.getLargestSeqNumber()));
 				} else {
-					sendMessage(new HeartbeatMessage());
+					sendMessageToGroup(new HeartbeatMessage());
 				}
 			}
 		}

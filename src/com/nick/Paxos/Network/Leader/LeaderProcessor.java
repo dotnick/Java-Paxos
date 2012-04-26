@@ -30,7 +30,7 @@ public class LeaderProcessor extends Thread  {
 	private DatagramSocket toGroup;
 	private DatagramSocket replySocket;
 	
-	private int minSeqn;
+	private int minSeqn = 0;
 	
 	private final int SUCCESS = 1;
 	private final int FAILURE = -1;
@@ -75,7 +75,7 @@ public class LeaderProcessor extends Thread  {
 				
 					if(acceptReply == SUCCESS) { 
 						System.out.println("Received enough accepts. Value accepted.");
-						sendAcceptNotification(queue.peek());
+						sendAcceptNotification(queue.dequeue());
 						
 						increaseSeqNo();
 					} else {

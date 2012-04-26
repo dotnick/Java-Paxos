@@ -20,11 +20,12 @@ public class Data {
 	 * This will be used to replay the log in the case of a 
 	 * failure and (possibly) help new Paxos nodes catch up. 
 	 */
+	
 	public  HashMap<String,String> data;
 	public  HashMap<Integer,Command> commandsProcessed; //<Sequence Number, Command>
-	public  Vector<Integer> SeqNumbersProcessed;// Used for Map indexing
+	public  Vector<Integer> SeqNumbersProcessed; // Used for Map indexing
 	
-	//TODO: Fixed list of nodes for quorum
+	//TODO: Fix list of nodes for quorum
 	
 	public static AcceptRequestMessage accepted; // Wait for Accept notification before committing
 	private static Integer minSeqn;
@@ -44,28 +45,34 @@ public class Data {
 	public void process(Object message) {
 		int result = 0;
 		if (message instanceof PrepareRequestMessage) {
+			System.out.println("Received new prepare message.");
 			PrepareRequestMessage PRM = (PrepareRequestMessage) message;
 			result = processPrepareRequest(PRM);
 			if (result == OK) {
+				System.out.println("Request has a valid sequence number. Sending promise...");
 				minSeqn = PRM.getSeqNo();
 				// Send Promise
 				Node.respondToLeader(new PromiseMessage(PRM.getSeqNo()));
 			} 
 	
 		} else if (message instanceof AcceptRequestMessage) {
+			System.out.println("Received new accept request.");
 			AcceptRequestMessage arm = (AcceptRequestMessage) message;
 			result = processAcceptRequest(arm);
 			if (result == OK) {
+				System.out.println("Accepted the command. Sending accept reply..");
 				// Notify the leader that we accept the request
 				Node.respondToLeader(new AcceptReplyMessage(arm.getSeqNo()));
 			} 
 
 		} else if (message instanceof AcceptNotificationMessage) {
+			
 			AcceptNotificationMessage ANM = (AcceptNotificationMessage) message;
 			result = commit(ANM); 
 			if (result == OK) {
 				// Notify that we commited the proposal 
-				Node.sendMessage(new AcceptedNotificationMessage(ANM.getSeqNo(), ANM.getCommand()));
+				System.out.println("Received an accepted notification. Committing the command.");
+				Node.sendMessageToGroup(new AcceptedNotificationMessage(ANM.getSeqNo(), ANM.getCommand()));
 			} 
 		}
 		
@@ -134,6 +141,14 @@ public class Data {
 	} else {
 		return false;
 		}
+	}
+	
+	public int addFromSync(int seqNumber, Command cmd){
+		int result = write(seqNumber,cmd);
+		if(result == OK) {
+			this.minSeqn = seqNumber;
+		}
+		return result;
 	}
 	
 }
