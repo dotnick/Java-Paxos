@@ -25,7 +25,6 @@ public class Data {
 	public  HashMap<Integer,Command> commandsProcessed; //<Sequence Number, Command>
 	public  Vector<Integer> SeqNumbersProcessed; // Used for Map indexing
 	
-	//TODO: Fix list of nodes for quorum
 	
 	public static AcceptRequestMessage accepted; // Wait for Accept notification before committing
 	private static Integer minSeqn;
@@ -147,6 +146,7 @@ public class Data {
 		int result = write(seqNumber,cmd);
 		if(result == OK) {
 			this.minSeqn = seqNumber;
+			SeqNumbersProcessed.addElement(seqNumber);
 		}
 		return result;
 	}

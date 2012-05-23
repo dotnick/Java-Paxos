@@ -83,8 +83,8 @@ public class LeaderProcessor extends Thread  {
 						increaseSeqNo();
 					}
 				} else {
-					System.out.println("Received Old Round for sequence number " + this.minSeqn + ". Increasing to " + (this.minSeqn + 5));
-					increaseSeqNo();
+					System.out.println("Did not receive promises from the majority.");
+					// Retry? Increase sequence number?
 				}
 			}
 		}

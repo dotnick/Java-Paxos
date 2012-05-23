@@ -39,16 +39,26 @@ public class LeaderListener extends Thread {
 					CatchUpRequestMessage CUR = (CatchUpRequestMessage) obj;
 					Vector<Integer> seqNumbers = new Vector<Integer>();
 					HashMap<Integer,Command> commands = new HashMap<Integer,Command>();
-					for(int i=Paxos.node.data.SeqNumbersProcessed.indexOf(CUR.getLatestRound()); i<Paxos.node.data.SeqNumbersProcessed.size(); i++){
-						seqNumbers.add(Paxos.node.data.SeqNumbersProcessed.elementAt(i));
-						commands.put(Paxos.node.data.SeqNumbersProcessed.elementAt(i), Paxos.node.data.commandsProcessed.get(Paxos.node.data.SeqNumbersProcessed.elementAt(i)));
+					
+					if(CUR.getLatestRound() != 0){
+						for(int i=Paxos.node.data.SeqNumbersProcessed.indexOf(CUR.getLatestRound()); i<Paxos.node.data.SeqNumbersProcessed.size(); i++){
+							seqNumbers.add(Paxos.node.data.SeqNumbersProcessed.elementAt(i));
+							commands.put(Paxos.node.data.SeqNumbersProcessed.elementAt(i), Paxos.node.data.commandsProcessed.get(Paxos.node.data.SeqNumbersProcessed.elementAt(i)));
+						}
+					} else {
+						for(int i=0; i<Paxos.node.data.SeqNumbersProcessed.size(); i++){
+							seqNumbers.add(Paxos.node.data.SeqNumbersProcessed.elementAt(i));
+							commands.put(Paxos.node.data.SeqNumbersProcessed.elementAt(i), Paxos.node.data.commandsProcessed.get(Paxos.node.data.SeqNumbersProcessed.elementAt(i)));
+						}
 					}
+					
 					UpdateLog log = new UpdateLog(seqNumbers,commands);
 					byte buf[] = SerializationUtil.serialize(log);
 					DatagramPacket dp = new DatagramPacket(buf, buf.length, packet.getAddress(),1237);
 					DatagramSocket ds = new DatagramSocket();
 					ds.send(dp);
-				}else if(obj instanceof Command) {
+					
+				} else if(obj instanceof Command) {
 					System.out.println("Received new command");
 					Command cmd = (Command) obj;
 					if(isReadOperation(cmd)) {

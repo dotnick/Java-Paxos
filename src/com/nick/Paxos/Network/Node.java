@@ -107,15 +107,15 @@ public class Node extends Thread {
 					if(!packet.getAddress().equals(localAddress) ) {
 						resetNodeTimer(packet.getAddress());
 						if(obj instanceof LeaderHeartbeatMessage) {
-							System.out.println("New leader hb. Should sync..");
+							//System.out.println("New leader hb. Should sync..");
 							LeaderHeartbeatMessage lhbm = (LeaderHeartbeatMessage) SerializationUtil.deSerialize(packet.getData());
 							if(lhbm.getLatestRound() > data.getLargestSeqNumber()) {
 								this.isLearner = true;
 								System.out.println("Missing rounds. Will sync with leader..");
 								// TODO: Move to another thread.
-								respondToLeader(new CatchUpRequestMessage(data.getLargestSeqNumber()));
+								requestCatchUp(new CatchUpRequestMessage(data.getLargestSeqNumber()));
 								try {
-									DatagramSocket syncFromLeader = new DatagramSocket(LEADER_SYNC_PORT);
+									DatagramSocket syncFromLeader = new DatagramSocket(LEADER_LISTENER_PORT);
 									byte[] buf = new byte[2048];
 									DatagramPacket syncPacket = new DatagramPacket(buf,buf.length);
 									syncFromLeader.receive(syncPacket);
@@ -276,6 +276,24 @@ public class Node extends Thread {
 		}		
 	}
 	
+	public static void requestCatchUp(Object message) {
+		
+		byte[] buff = SerializationUtil.serialize(message);
+		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_REPLIES_PORT);
+		DatagramSocket socketToLeader = null;
+		
+		try {
+			socketToLeader = new DatagramSocket();
+		} catch (SocketException e1) {
+			System.err.println("Error while creating socket to leader.");
+			return;
+		}
+		try {
+			socketToLeader.send(response);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}		
+	}
 	public int getQuorumSize() {
 		return this.nodes.size();
 	}
@@ -300,8 +318,6 @@ public class Node extends Thread {
 							// New leader election
 						}
 						
-						System.out.println("Node " + nodes.elementAt(i).toString() + " timed-out.");
-						// Notify the rest of the nodes?
 					}
 				}
 				try {

@@ -39,9 +39,11 @@ public class Paxos extends SerializationUtil {
 					if(input[0].equals("quit")) { 
 						cleanExit();
 					} else if(input[0].equals("print")) { 
-						
-						System.out.println(node.data.data.get(input[1]));
-						
+						if(input[1].equals("db")){
+							System.out.println(node.data.data.toString());
+						} else {
+							System.out.println(node.data.data.get(input[1]));
+						}
 					} else {
 						System.out.println("Unknown command.");
 					}
