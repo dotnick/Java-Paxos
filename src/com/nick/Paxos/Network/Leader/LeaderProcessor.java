@@ -84,6 +84,7 @@ public class LeaderProcessor extends Thread  {
 					}
 				} else {
 					System.out.println("Did not receive promises from the majority.");
+					increaseSeqNo();
 					// Retry? Increase sequence number?
 				}
 			}
@@ -150,7 +151,7 @@ public class LeaderProcessor extends Thread  {
 		byte[] receiveBuf = new byte[512];
 		DatagramPacket receivePacket = new DatagramPacket(receiveBuf,receiveBuf.length);
 		try {
-			leaderRepliesSocket.setSoTimeout(250);
+			leaderRepliesSocket.setSoTimeout(500);
 		} catch (SocketException e1) {
 			e1.printStackTrace();
 		}

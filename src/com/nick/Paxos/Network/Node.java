@@ -279,7 +279,7 @@ public class Node extends Thread {
 	public static void requestCatchUp(Object message) {
 		
 		byte[] buff = SerializationUtil.serialize(message);
-		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_REPLIES_PORT);
+		DatagramPacket response = new DatagramPacket(buff, buff.length, leaderAddress , LEADER_LISTENER_PORT);
 		DatagramSocket socketToLeader = null;
 		
 		try {

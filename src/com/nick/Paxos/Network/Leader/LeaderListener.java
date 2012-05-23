@@ -36,6 +36,7 @@ public class LeaderListener extends Thread {
 				listenSocket.receive(packet);
 				Object obj = SerializationUtil.deSerialize(buf);
 				if(obj instanceof CatchUpRequestMessage){
+					System.out.println("New catch up request.");
 					CatchUpRequestMessage CUR = (CatchUpRequestMessage) obj;
 					Vector<Integer> seqNumbers = new Vector<Integer>();
 					HashMap<Integer,Command> commands = new HashMap<Integer,Command>();
@@ -53,6 +54,7 @@ public class LeaderListener extends Thread {
 					}
 					
 					UpdateLog log = new UpdateLog(seqNumbers,commands);
+					System.out.println(seqNumbers.size());
 					byte buf[] = SerializationUtil.serialize(log);
 					DatagramPacket dp = new DatagramPacket(buf, buf.length, packet.getAddress(),1237);
 					DatagramSocket ds = new DatagramSocket();
