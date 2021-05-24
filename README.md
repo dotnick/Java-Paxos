@@ -1,2 +1,2 @@
 # Java-Paxos
-Implementation of a catch-up mechanism for the Paxos consensus algorithm
+A very basic implementation of the Paxos consensus algorithm with a catch-up mechanic that allows new replicas to be addded during runtime.
